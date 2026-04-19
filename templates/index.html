@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Robot Command Center</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; display: grid; grid-template-columns: 1fr 350px; height: 100vh; font-family: sans-serif; }
+        #map { height: 100%; }
+        #sidebar { background: #222; color: white; padding: 15px; display: flex; flex-direction: column; gap: 20px; }
+        .cam-feed { width: 100%; border: 2px solid #444; border-radius: 8px; }
+        .stats { background: #333; padding: 10px; border-radius: 5px; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div id="sidebar">
+        <h3>Robot Eye Cam</h3>
+        <img src="{{ url_for('video_feed') }}" class="cam-feed">
+        
+        <h3>Telemetry</h3>
+        <div class="stats" id="telemetry">
+            LAT: --.------ <br>
+            LON: --.------
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const map = L.map('map').setView([40.4247, -86.9115], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        const marker = L.marker([40.4247, -86.9115]).addTo(map);
+
+        const socket = io();
+        socket.on('location_update', function(data) {
+            const pos = [data.lat, data.lon];
+            marker.setLatLng(pos);
+            map.panTo(pos);
+            document.getElementById('telemetry').innerHTML = 
+                `LAT: ${data.lat.toFixed(6)} <br> LON: ${data.lon.toFixed(6)}`;
+        });
+    </script>
+</body>
+</html>
