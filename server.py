@@ -30,16 +30,27 @@ def gen_frames():
 
 # --- TELEMETRY SETUP (ESP32) ---
 def read_esp32_serial():
+    ser = None
+    print("Attempting to connect to ESP32...")
+    
     try:
-        ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
-        while True:
-            if ser.in_waiting > 0:
+        # The timeout is key: it prevents the thread from hanging forever
+        ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=0.1)
+        print("ESP32 Connected!")
+    except Exception as e:
+        print(f"!!! SERIAL ERROR: {e}")
+        print("Server will continue running WITHOUT live telemetry.")
+        return # Exit the thread, but the server keeps living
+
+    while True:
+        try:
+            if ser and ser.in_waiting > 0:
                 line = ser.readline().decode('utf-8').strip()
-                try:
-                    data = json.loads(line)
-                    socketio.emit('location_update', data)
-                except: pass
-    except: print("Serial not connected")
+                data = json.loads(line)
+                socketio.emit('location_update', data)
+        except Exception:
+            # This catches garbled data or sudden disconnects
+            continue
 
 @app.route('/')
 def index():
