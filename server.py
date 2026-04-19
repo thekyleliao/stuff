@@ -36,31 +36,36 @@ COORD_PATTERN = re.compile(r"[-+]?\d*\.\d+|\d+")
 
 def read_esp32_serial():
     try:
-        # Use '/dev/serial0' for the GPIO pins 14/15
-        ser = serial.Serial('/dev/serial0', 115200, timeout=1)
-        print("Listening on GPIO 14/15...")
+        # Open the resolved serial0 port
+        ser = serial.Serial('/dev/serial0', 115200, timeout=0.1)
+        print("Listening to ESP32 on /dev/serial0...")
     except Exception as e:
-        print(f"Serial Error: {e}")
+        print(f"Serial Connection Error: {e}")
         return
 
     while True:
-        if ser.in_waiting > 0:
-            try:
+        try:
+            if ser.in_waiting > 0:
+                # 1. Read the line (handles the \r\n automatically)
                 line = ser.readline().decode('utf-8', errors='ignore').strip()
                 
-                # Permissive Parsing: Find all numbers in the string
-                matches = COORD_PATTERN.findall(line)
-                
-                if len(matches) >= 2:
-                    # Assume the first two numbers are Lat and Lon
-                    data = {
-                        "lat": float(matches[0]),
-                        "lon": float(matches[1])
-                    }
-                    socketio.emit('location_update', data)
-                    print(f"Parsed: {data}")
-            except Exception:
-                continue
+                if line:
+                    # 2. Split by comma (matching your %.7f,%.7f format)
+                    parts = line.split(',')
+                    
+                    if len(parts) == 2:
+                        # 3. Convert to float and emit
+                        data = {
+                            "lat": float(parts[0]),
+                            "lon": float(parts[1])
+                        }
+                        socketio.emit('location_update', data)
+                    else:
+                        print(f"Skipping malformed line: {line}")
+        except Exception as e:
+            # Prevents the thread from dying if there's a single bad read
+            print(f"Read Error: {e}")
+            continue
 @app.route('/')
 def index():
     return render_template('index.html')
