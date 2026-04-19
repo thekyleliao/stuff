@@ -29,29 +29,38 @@ def gen_frames():
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 # --- TELEMETRY SETUP (ESP32) ---
+import re
+
+# Regex to find numbers that look like Lat/Lon (e.g., 40.4247 or -86.9115)
+COORD_PATTERN = re.compile(r"[-+]?\d*\.\d+|\d+")
+
 def read_esp32_serial():
-    ser = None
-    print("Attempting to connect to ESP32...")
-    
     try:
-        # The timeout is key: it prevents the thread from hanging forever
-        ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=0.1)
-        print("ESP32 Connected!")
+        # Use '/dev/serial0' for the GPIO pins 14/15
+        ser = serial.Serial('/dev/serial0', 115200, timeout=1)
+        print("Listening on GPIO 14/15...")
     except Exception as e:
-        print(f"!!! SERIAL ERROR: {e}")
-        print("Server will continue running WITHOUT live telemetry.")
-        return # Exit the thread, but the server keeps living
+        print(f"Serial Error: {e}")
+        return
 
     while True:
-        try:
-            if ser and ser.in_waiting > 0:
-                line = ser.readline().decode('utf-8').strip()
-                data = json.loads(line)
-                socketio.emit('location_update', data)
-        except Exception:
-            # This catches garbled data or sudden disconnects
-            continue
-
+        if ser.in_waiting > 0:
+            try:
+                line = ser.readline().decode('utf-8', errors='ignore').strip()
+                
+                # Permissive Parsing: Find all numbers in the string
+                matches = COORD_PATTERN.findall(line)
+                
+                if len(matches) >= 2:
+                    # Assume the first two numbers are Lat and Lon
+                    data = {
+                        "lat": float(matches[0]),
+                        "lon": float(matches[1])
+                    }
+                    socketio.emit('location_update', data)
+                    print(f"Parsed: {data}")
+            except Exception:
+                continue
 @app.route('/')
 def index():
     return render_template('index.html')
